@@ -383,6 +383,7 @@
     let gameOver = false;
     let gameWon = false;
     let currentMap = 0;
+    let airfieldUnlocked = false;
     let nextMapUnlocked = false;
     let kills = 0;
     let achievementBonus = 0;
@@ -1004,12 +1005,6 @@
     document.getElementById("startWave").addEventListener("click",() => {
       if (!gameStarted || gameOver) return;
 
-      if (gameWon && currentMap === 0) {
-        message.textContent =
-          "Je hebt de eerste kaart vrijgespeeld. Koop een vliegveld en ga naar de woestijnkaart!";
-        return;
-      }
-
       const nextWave = wave+1;
       const isBossWave = nextWave%10 === 0;
 
@@ -1031,7 +1026,10 @@
         return;
       }
 
+      gameWon = false;
       wave = nextWave;
+      document.getElementById("startWave").textContent =
+        "Start wave";
 
       activeWaves.push({
         number:wave,
@@ -1088,7 +1086,7 @@
         return;
       }
 
-      if (!gameWon) {
+      if (!airfieldUnlocked) {
         message.textContent =
           "Versla eerst de boss van wave 100 om het vliegveld te kopen.";
         return;
@@ -1135,6 +1133,11 @@
       bombs = [];
       explosions = [];
       shots = [];
+      planes.forEach(plane => {
+        plane.x = path[path.length-1].x;
+        plane.y = path[path.length-1].y;
+        plane.segment = path.length-1;
+      });
 
       document.getElementById("nextMap").style.display =
         "none";
@@ -1163,6 +1166,7 @@
           currentMap = 0;
           path = mapPaths[0];
           nextMapUnlocked = false;
+          airfieldUnlocked = false;
           kills = 0;
           towers = [];
           mines = [];
@@ -1282,14 +1286,19 @@
         kills++;
         money += enemy.reward;
 
-        if (enemy.isBoss && enemy.type === "TUNG TUNG TUNG SAHUR") {
+        if (
+          currentMap === 0 &&
+          enemy.isBoss &&
+          enemy.type === "TUNG TUNG TUNG SAHUR"
+        ) {
+          airfieldUnlocked = true;
           gameWon = true;
           gameOver = false;
           activeWaves = [];
           message.textContent =
-            "JE HEBT GEWONNEN! Je hebt wave 100 verslagen!";
+            "Je hebt wave 100 verslagen! Je kunt verder spelen, of een vliegveld kopen om de woestijnkaart te openen.";
           document.getElementById("startWave").textContent =
-            "Spel uitgespeeld";
+            `Verder spelen (wave ${wave+1})`;
           playSound("boss");
           updateStats();
         }
