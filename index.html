@@ -252,6 +252,9 @@
     <span class="stat">Lives: <strong id="lives">20</strong></span>
     <span class="stat">Wave: <strong id="wave">0</strong></span>
     <span class="stat">Speed: <strong id="speed">1</strong>×</span>
+    <span class="stat">Kills: <strong id="kills">0</strong></span>
+    <span class="stat">Map: <strong id="mapName">Forest</strong></span>
+    <span class="stat">Mode: <strong id="gameMode">Classic</strong></span>
   </div>
 
   <div id="bossHud">
@@ -282,7 +285,8 @@
         <button id="slower">Slower</button>
         <button id="faster">Faster</button>
         <button id="buyLife">Buy life — 100,000</button>
-        <button id="buyPlane">Buy airplane — 1,000,000</button>
+        <button id="buyPlane">Buy airfield — 5,000,000</button>
+        <button id="nextMap" style="display:none">Go to desert map</button>
         <button id="musicButton">Music: Off</button>
       </div>
       <canvas id="game" width="960" height="600"></canvas>
@@ -305,7 +309,8 @@
     const ctx = canvas.getContext("2d");
     const message = document.getElementById("message");
 
-    const path = [
+    const mapPaths = [
+      [
       { x: 0, y: 120 },
       { x: 220, y: 120 },
       { x: 220, y: 300 },
@@ -314,7 +319,21 @@
       { x: 720, y: 145 },
       { x: 720, y: 455 },
       { x: 960, y: 455 }
+      ],
+      [
+      { x: 0, y: 500 },
+      { x: 150, y: 500 },
+      { x: 150, y: 250 },
+      { x: 340, y: 250 },
+      { x: 340, y: 480 },
+      { x: 570, y: 480 },
+      { x: 570, y: 160 },
+      { x: 780, y: 160 },
+      { x: 780, y: 350 },
+      { x: 960, y: 350 }
+      ]
     ];
+    let path = mapPaths[0];
 
     const towerInfo = {
       Scout: {
@@ -362,6 +381,11 @@
     let difficulty = "normal";
     let gameStarted = false;
     let gameOver = false;
+    let gameWon = false;
+    let currentMap = 0;
+    let nextMapUnlocked = false;
+    let kills = 0;
+    let achievementBonus = 0;
     let selectedTower = null;
     let selectedItem = "Scout";
     let nextEnemyId = 1;
@@ -692,6 +716,9 @@
       document.getElementById("lives").textContent = lives;
       document.getElementById("wave").textContent = wave;
       document.getElementById("speed").textContent = speed;
+      document.getElementById("kills").textContent = kills;
+      document.getElementById("mapName").textContent =
+        currentMap === 0 ? "Forest" : "Desert";
 
       const remaining =
         enemies.filter(enemy => !enemy.dead).length +
@@ -915,10 +942,9 @@
         return;
       }
 
-      if (selectedTower.name === "Farm" &&
-          selectedTower.level >= 15) {
+      if (selectedTower.level >= 15) {
         message.textContent =
-          "This Farm is already at maximum level 15.";
+          `${selectedTower.name} is already at maximum level 15.`;
         return;
       }
 
@@ -935,11 +961,16 @@
       selectedTower.level++;
 
       if (selectedTower.name !== "Farm") {
+        const baseInfo = towerInfo[selectedTower.name];
+        const statMultiplier =
+          1+2*(selectedTower.level-1)/14;
+
         selectedTower.damage =
           Math.ceil(selectedTower.damage*1.38);
-        selectedTower.range += 10;
+        selectedTower.range =
+          baseInfo.range*statMultiplier;
         selectedTower.rate =
-          Math.max(.08,selectedTower.rate*.92);
+          baseInfo.rate/statMultiplier;
       }
 
       playSound("upgrade");
@@ -972,6 +1003,12 @@
 
     document.getElementById("startWave").addEventListener("click",() => {
       if (!gameStarted || gameOver) return;
+
+      if (gameWon && currentMap === 0) {
+        message.textContent =
+          "Je hebt de eerste kaart vrijgespeeld. Koop een vliegveld en ga naar de woestijnkaart!";
+        return;
+      }
 
       const nextWave = wave+1;
       const isBossWave = nextWave%10 === 0;
@@ -1049,25 +1086,60 @@
         return;
       }
 
-      if (money < 1000000) {
+      if (!gameWon) {
         message.textContent =
-          "You need 1,000,000 coins to buy an airplane.";
+          "Versla eerst de boss van wave 100 om het vliegveld te kopen.";
         return;
       }
 
-      money -= 1000000;
+      if (money < 5000000) {
+        message.textContent =
+          "You need 5,000,000 coins to buy an airfield.";
+        return;
+      }
+
+      money -= 5000000;
 
       planes.push({
         x:path[path.length-1].x,
         y:path[path.length-1].y,
         segment:path.length-1,
-        bombTimer:15
+        bombTimer:10
       });
 
       playSound("buy");
 
       message.textContent =
-        "Airplane bought! It approaches from the opposite side and drops bombs.";
+        "Vliegveld gekocht! Het vliegtuig helpt nu op alle kaarten.";
+      document.getElementById("nextMap").style.display =
+        "inline-block";
+      nextMapUnlocked = true;
+      updateStats();
+    });
+
+    document.getElementById("nextMap").addEventListener("click",() => {
+      if (!nextMapUnlocked) return;
+
+      currentMap = 1;
+      path = mapPaths[1];
+      wave = 0;
+      gameWon = false;
+      gameOver = false;
+      enemies = [];
+      activeWaves = [];
+      kills = 0;
+      achievementBonus = 0;
+      mines = [];
+      bombs = [];
+      explosions = [];
+      shots = [];
+
+      document.getElementById("nextMap").style.display =
+        "none";
+      document.getElementById("startWave").textContent =
+        "Start desert wave";
+      message.textContent =
+        "Woestijnkaart geopend — alle vijanden zijn 2x sterker.";
       updateStats();
     });
 
@@ -1081,6 +1153,24 @@
             difficulty === "hard" ? 100 : 300;
 
           gameStarted = true;
+          gameWon = false;
+          gameOver = false;
+          currentMap = 0;
+          path = mapPaths[0];
+          nextMapUnlocked = false;
+          kills = 0;
+          towers = [];
+          mines = [];
+          planes = [];
+          enemies = [];
+          shots = [];
+          bombs = [];
+          explosions = [];
+          activeWaves = [];
+          document.getElementById("startWave").textContent =
+            "Start wave";
+          document.getElementById("nextMap").style.display =
+            "none";
 
           document.getElementById("difficultyMenu")
             .style.display = "none";
@@ -1095,6 +1185,8 @@
     function spawnEnemy(waveNumber,spawnNumber) {
       const isBoss = waveNumber%10 === 0;
       const lateScale = Math.max(0,waveNumber-10);
+      const tenWaveMultiplier =
+        1+Math.floor((waveNumber-1)/10)*.005;
 
       let hp =
         Math.round((55+waveNumber*12)*Math.pow(1.025,lateScale));
@@ -1112,7 +1204,7 @@
       if (isBoss) {
         const tier = waveNumber/10;
 
-        hp = Math.round(3500*Math.pow(tier,1.65));
+        hp = Math.round(35000*Math.pow(tier,1.65));
         enemySpeed = Math.min(54,25+tier*1.4);
         reward = 1800*tier+1200;
         type =
@@ -1145,6 +1237,14 @@
         enemySpeed *= 1.08;
       }
 
+      if (currentMap === 1) {
+        hp *= 2;
+        enemySpeed *= 1.25;
+        reward = Math.round(reward*1.5);
+      }
+
+      hp *= tenWaveMultiplier;
+      enemySpeed *= tenWaveMultiplier;
       hp = Math.round(hp);
 
       enemies.push({
@@ -1172,7 +1272,20 @@
 
       if (enemy.hp <= 0) {
         enemy.dead = true;
+        kills++;
         money += enemy.reward;
+
+        if (enemy.isBoss && enemy.type === "TUNG TUNG TUNG SAHUR") {
+          gameWon = true;
+          gameOver = false;
+          activeWaves = [];
+          message.textContent =
+            "JE HEBT GEWONNEN! Je hebt wave 100 verslagen!";
+          document.getElementById("startWave").textContent =
+            "Spel uitgespeeld";
+          playSound("boss");
+          updateStats();
+        }
       }
     }
 
@@ -1210,7 +1323,7 @@
     }
 
     function update(dt) {
-      if (!gameStarted || gameOver) return;
+      if (!gameStarted || gameOver || gameWon) return;
 
       for (const state of activeWaves) {
         state.timer -= dt;
@@ -1462,9 +1575,15 @@
         0,0,canvas.width,canvas.height
       );
 
-      ground.addColorStop(0,"#83ad61");
-      ground.addColorStop(.5,"#71994f");
-      ground.addColorStop(1,"#5e8245");
+      if (currentMap === 0) {
+        ground.addColorStop(0,"#83ad61");
+        ground.addColorStop(.5,"#71994f");
+        ground.addColorStop(1,"#5e8245");
+      } else {
+        ground.addColorStop(0,"#d6b66f");
+        ground.addColorStop(.5,"#bd9352");
+        ground.addColorStop(1,"#9c7138");
+      }
 
       ctx.fillStyle = ground;
       ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -1959,6 +2078,35 @@
           "GAME OVER",
           canvas.width/2,
           canvas.height/2
+        );
+      }
+
+      if (gameWon) {
+        ctx.fillStyle =
+          "rgba(10,42,24,.78)";
+        ctx.fillRect(
+          0,0,
+          canvas.width,
+          canvas.height
+        );
+
+        ctx.fillStyle = "#fff";
+        ctx.textAlign = "center";
+        ctx.font =
+          "bold 48px system-ui";
+
+        ctx.fillText(
+          "YOU WIN!",
+          canvas.width/2,
+          canvas.height/2-20
+        );
+
+        ctx.font =
+          "bold 22px system-ui";
+        ctx.fillText(
+          "Je hebt wave 100 verslagen",
+          canvas.width/2,
+          canvas.height/2+30
         );
       }
     }
