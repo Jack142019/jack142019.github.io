@@ -239,9 +239,9 @@
   <div id="difficultyMenu">
     <section>
       <h2>Choose your difficulty</h2>
-      <button data-difficulty="easy">Easy<small>500 coins · weaker enemies</small></button>
-      <button data-difficulty="normal">Normal<small>300 coins · normal enemies</small></button>
-      <button data-difficulty="hard">Hard<small>100 coins · stronger enemies from wave 11</small></button>
+      <button data-difficulty="easy">Easy<small>500 coins · 12 lives · weaker enemies</small></button>
+      <button data-difficulty="normal">Normal<small>300 coins · 8 lives · tough enemies</small></button>
+      <button data-difficulty="hard">Hard<small>100 coins · 5 lives · relentless enemies</small></button>
     </section>
   </div>
 
@@ -375,7 +375,7 @@
     ];
 
     let money = 300;
-    let lives = 20;
+    let lives = 8;
     let wave = 0;
     let speed = 1;
     let difficulty = "normal";
@@ -1035,7 +1035,9 @@
 
       activeWaves.push({
         number:wave,
-        remaining:isBossWave ? 1 : 7+Math.floor(wave*1.25),
+        remaining:isBossWave
+          ? 1
+          : 10+Math.floor(wave*1.55),
         spawned:0,
         timer:0
       });
@@ -1151,6 +1153,9 @@
           money =
             difficulty === "easy" ? 500 :
             difficulty === "hard" ? 100 : 300;
+          lives =
+            difficulty === "easy" ? 12 :
+            difficulty === "hard" ? 5 : 8;
 
           gameStarted = true;
           gameWon = false;
@@ -1192,7 +1197,7 @@
         Math.round((55+waveNumber*12)*Math.pow(1.025,lateScale));
 
       let enemySpeed =
-        Math.min(95,44+waveNumber*.65);
+        Math.min(112,48+waveNumber*.82);
 
       let reward =
         12+Math.floor(waveNumber*1.5);
@@ -1204,9 +1209,9 @@
       if (isBoss) {
         const tier = waveNumber/10;
 
-        hp = Math.round(35000*Math.pow(tier,1.65));
-        enemySpeed = Math.min(54,25+tier*1.4);
-        reward = 1800*tier+1200;
+        hp = Math.round(52000*Math.pow(tier,1.72));
+        enemySpeed = Math.min(68,28+tier*1.7);
+        reward = Math.round(2300*tier+1600);
         type =
           waveNumber === 100
             ? "TUNG TUNG TUNG SAHUR"
@@ -1229,18 +1234,20 @@
       }
 
       if (difficulty === "easy") {
-        hp *= .68;
-        enemySpeed *= .84;
-      } else if (difficulty === "hard" &&
-                 waveNumber > 10) {
-        hp *= 1.45;
-        enemySpeed *= 1.08;
+        hp *= .82;
+        enemySpeed *= .92;
+      } else if (difficulty === "normal") {
+        hp *= 1.12;
+        enemySpeed *= 1.05;
+      } else if (difficulty === "hard") {
+        hp *= 1.55;
+        enemySpeed *= 1.14;
       }
 
       if (currentMap === 1) {
-        hp *= 2;
-        enemySpeed *= 1.25;
-        reward = Math.round(reward*1.5);
+        hp *= 2.5;
+        enemySpeed *= 1.35;
+        reward = Math.round(reward*1.75);
       }
 
       hp *= tenWaveMultiplier;
@@ -1333,7 +1340,11 @@
           state.spawned++;
           spawnEnemy(state.number,state.spawned);
           state.remaining--;
-          state.timer = .82;
+          state.timer =
+            Math.max(
+              .38,
+              .82-state.number*.006
+            );
         }
       }
 
